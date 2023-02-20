@@ -1,16 +1,20 @@
 lockfileVersion: 5.4
 
 specifiers:
+  '@tweakpane/core': ^1.1.4
   '@webgpu/types': ^0.1.27
+  tweakpane: ^3.1.4
   typescript: ^4.9.3
   vite: ^4.1.0
   vite-plugin-glsl: ^1.1.2
 
 dependencies:
   '@webgpu/types': registry.npmmirror.com/@webgpu/types/0.1.27
+  tweakpane: registry.npmmirror.com/tweakpane/3.1.4
   vite-plugin-glsl: registry.npmmirror.com/vite-plugin-glsl/1.1.2_vite@4.1.1
 
 devDependencies:
+  '@tweakpane/core': registry.npmmirror.com/@tweakpane/core/1.1.4
   typescript: registry.npmmirror.com/typescript/4.9.5
   vite: registry.npmmirror.com/vite/4.1.1
 
@@ -252,6 +256,12 @@ packages:
       picomatch: registry.npmmirror.com/picomatch/2.3.1
     dev: false
 
+  registry.npmmirror.com/@tweakpane/core/1.1.4:
+    resolution: {integrity: sha512-Z0l5U7IYnLjSzK6PWohEaxqZDV99saa3dymXd5ymw9zrVuVvVzcvK/2TzgyN+suWOIH0DaMzOeLU935qBmUV+w==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/@tweakpane/core/-/core-1.1.4.tgz}
+    name: '@tweakpane/core'
+    version: 1.1.4
+    dev: true
+
   registry.npmmirror.com/@types/estree/1.0.0:
     resolution: {integrity: sha512-WulqXMDUTYAXCjZnk6JtIHPigp55cVtDgDrO2gHRwhyJto21+1zbVCtOYB2L1F9w4qCQ0rOGWBnBe0FNTiEJIQ==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/@types/estree/-/estree-1.0.0.tgz}
     name: '@types/estree'
@@ -394,6 +404,12 @@ packages:
     name: supports-preserve-symlinks-flag
     version: 1.0.0
     engines: {node: '>= 0.4'}
+
+  registry.npmmirror.com/tweakpane/3.1.4:
+    resolution: {integrity: sha512-YCEU6wn3uGMYlD63Lkh7Ahhiw1BzlKX4LOQKRGopHL8YEhOBbjiPVY95wXC1TwgoBpBhRGcfRwtbCRA8fkdO2A==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/tweakpane/-/tweakpane-3.1.4.tgz}
+    name: tweakpane
+    version: 3.1.4
+    dev: false
 
   registry.npmmirror.com/typescript/4.9.5:
     resolution: {integrity: sha512-1FXk9E2Hm+QzZQ7z+McJiHL4NW1F2EzMu9Nq9i3zAaGqibafqYwCVU6WyWAuyQRRzOlxou8xZSyXLEN8oKj24g==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/typescript/-/typescript-4.9.5.tgz}

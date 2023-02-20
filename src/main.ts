@@ -1,14 +1,26 @@
 import "./index.css";
-import { getGpuDevice, getSampler, getTextureByUrl, getUniformBuffer, getVertexBuffer } from "./utils";
+import { getBuffer, getGpuDevice, getSampler, getTextureByUrl, getUniformBuffer, getVertexBuffer } from "./utils";
 import printShader from './print.wgsl';
 import computeShader from './compute.wgsl';
 import imgUrl from './ball.png';
-import type { ComputePipelineConfig, RenderPipelineConfig } from "./core/type";
+import type { RenderPipelineConfig } from "./core/type";
 import { getRenderPipeline, render, RenderPassConfig } from "./core/render";
-import { compute, ComputeConfig, getComputePipeline } from "./core/compute";
+import { compute, initCompute } from "./core/compute";
+import { Pane } from "tweakpane";
+
+const Params = {
+  timeStride: 50,
+  size: 50,
+  number: 50,
+}
 
 function init(device: GPUDevice) {
   const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const size = Math.round(Math.min(width, height) * 0.8);
+  canvas.width = size;
+  canvas.height = size;
   const context = canvas.getContext("webgpu")!;
   context?.configure({
     device,
@@ -44,20 +56,7 @@ function init(device: GPUDevice) {
   new Uint16Array(indexBuffer.getMappedRange()).set(indexArray);
   indexBuffer.unmap();
   const paramBuffer = getUniformBuffer(new Float32Array([1, canvas.height / canvas.width]));
-  return { context, vertexBuffer, indexBuffer, paramBuffer };
-}
 
-async function loadResource() {
-  const texture = await getTextureByUrl(imgUrl);
-  return { texture }
-}
-
-async function draw() {
-  const device = await getGpuDevice();
-  const { context, vertexBuffer, indexBuffer, paramBuffer } = init(device);
-  const { texture } = await loadResource();
-  const shaderModule = device.createShaderModule({ code: printShader });
-  const computeModule = device.createShaderModule({ code: computeShader });
   const renderLayout = device.createBindGroupLayout({
     entries: [
       {
@@ -81,7 +80,37 @@ async function draw() {
       }
     ]
   })
-  const bindGroup = device.createBindGroup({
+  return { context, vertexBuffer, indexBuffer, paramBuffer, renderLayout };
+}
+
+async function loadResource() {
+  const texture = await getTextureByUrl(imgUrl);
+  return { texture }
+}
+
+async function draw() {
+  const device = await getGpuDevice();
+  const { context, vertexBuffer, indexBuffer, renderLayout, paramBuffer } = init(device);
+  const { texture } = await loadResource();
+
+  const instanceCount = Params.number * 10;
+  const baseInstanceNum = 6;
+  const randomArray = new Float32Array(instanceCount * baseInstanceNum);
+  for (let i = 0; i < instanceCount; i++) {
+    const baseIndex = i * baseInstanceNum;
+    randomArray[baseIndex + 0] = Math.random() * 2 - 1;
+    randomArray[baseIndex + 1] = Math.random() * 2 - 1;
+    randomArray[baseIndex + 2] = Math.random() * 2 - 1;
+    randomArray[baseIndex + 3] = Math.random() * 2 - 1;
+    randomArray[baseIndex + 4] = (Math.random() * 0.6 + 0.4) * 4E-4 * Params.size;
+  }
+
+  // const randomArray = new Float32Array([0, 0, 0.1, 0, 1, 0]);
+
+  const usage = GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST;
+  const instanceBuffers = [getBuffer(randomArray, usage), getBuffer(randomArray, usage)];
+
+  const renderBindGroup = device.createBindGroup({
     layout: renderLayout,
     entries: [
       {
@@ -99,41 +128,126 @@ async function draw() {
     ]
   });
 
-  const moleculeCount = 100;
-  const baseInstanceNum = 5;
-  const randomArray = new Float32Array(moleculeCount * baseInstanceNum);
-  for (let i = 0; i < moleculeCount; i++) {
-    const baseIndex = i * baseInstanceNum;
-    randomArray[baseIndex + 0] = Math.random() * 2 - 1;
-    randomArray[baseIndex + 1] = Math.random() * 2 - 1;
-    randomArray[baseIndex + 2] = Math.random() * 2 - 1;
-    randomArray[baseIndex + 3] = Math.random() * 2 - 1;
-    randomArray[baseIndex + 4] = Math.random() * 0.08 + 0.02;
+  const vertexBuffers = new Map<number, GPUBuffer>();
+  vertexBuffers.set(0, vertexBuffer);
+  const renderBindGroups = new Map<number, GPUBindGroup>();
+  renderBindGroups.set(0, renderBindGroup);
+
+  const computeLayout = device.createBindGroupLayout({
+    entries: [
+      {
+        binding: 0,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "read-only-storage"
+        }
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "storage"
+        }
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: {
+          type: "uniform"
+        }
+      },
+    ]
+  });
+
+  const computeBuffer = device.createBuffer({
+    size: 4 * 1,
+    usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    mappedAtCreation: true
+  });
+  new Float32Array(computeBuffer.getMappedRange()).set([Params.timeStride * 1E-4]);
+  computeBuffer.unmap();
+
+
+  const computeBindGroupArray = [device.createBindGroup({
+    layout: computeLayout,
+    entries: [
+      {
+        binding: 0,
+        resource: { buffer: instanceBuffers[0] }
+      },
+      {
+        binding: 1,
+        resource: { buffer: instanceBuffers[1] }
+      },
+      {
+        binding: 2,
+        resource: { buffer: computeBuffer }
+      },
+    ]
+  }),
+  device.createBindGroup({
+    layout: computeLayout,
+    entries: [
+      {
+        binding: 0,
+        resource: { buffer: instanceBuffers[1] }
+      },
+      {
+        binding: 1,
+        resource: { buffer: instanceBuffers[0] }
+      },
+      {
+        binding: 2,
+        resource: { buffer: computeBuffer }
+      },
+    ]
+  })
+  ]
+
+  const computeBindGroups = new Map<number, GPUBindGroup>();
+  const computeModule = device.createShaderModule({ code: computeShader });
+
+  let loopNum: number | null = 0;
+  let i = 0;
+  const show = () => {
+    vertexBuffers.set(1, instanceBuffers[i % 2]);
+    computeBindGroups.set(0, computeBindGroupArray[i % 2]);
+    const commandEncoder = device.createCommandEncoder();
+    const computeConfig = initCompute(device, computeModule, computeLayout, computeBindGroups, instanceCount);
+    const textureView = context.getCurrentTexture().createView();
+    const renderConfig = initRender(device, vertexBuffers, renderBindGroups, renderLayout, indexBuffer, textureView, instanceCount, baseInstanceNum);
+    compute(commandEncoder, computeConfig);
+    render(commandEncoder, renderConfig);
+    device.queue.submit([commandEncoder.finish()]);
+    loopNum = requestAnimationFrame(show);
+    i++;
   }
+  show();
 
-  // const randomArray = new Float32Array([0, 0, 0, 0, 1])
-  const instanceBuffer0 = getVertexBuffer(randomArray);
-  const instanceBuffer1 = getVertexBuffer(randomArray);
+  document.addEventListener("keydown", function (event) {
+    if (event.code === "Space") {
+      if (loopNum) {
+        cancelAnimationFrame(loopNum);
+        loopNum = null;
+      } else {
+        show();
+      }
+    }
+  });
+}
 
-  const textureView = context.getCurrentTexture().createView();
+function initRender(device: GPUDevice, vertexBuffers: Map<number, GPUBuffer>, bindGroups: Map<number, GPUBindGroup>, renderLayout: GPUBindGroupLayout, indexBuffer: GPUBuffer, textureView: GPUTextureView, instanceCount: number, baseInstanceNum: number) {
+  const shaderModule = device.createShaderModule({ code: printShader });
+  // const computeModule = device.createShaderModule({ code: computeShader });
+
   const renderConfig: RenderPipelineConfig = {
     layout: renderLayout,
     module: shaderModule,
     vertexArrayStride: 4 * 2,
     instanceStride: 4 * baseInstanceNum,
   }
+
   const { renderPipeline } = getRenderPipeline(device, renderConfig);
-  const computePipelineConfig: ComputePipelineConfig = {
-    module: computeModule,
-    layout: renderLayout,
-  }
-  const { computePipeline } = getComputePipeline(device, computePipelineConfig);
-  const commandEncoder = device.createCommandEncoder();
-  const vertexBuffers = new Map<number, GPUBuffer>();
-  vertexBuffers.set(0, vertexBuffer);
-  vertexBuffers.set(1, instanceBuffer1);
-  const bindGroups = new Map<number, GPUBindGroup>();
-  bindGroups.set(0, bindGroup);
 
   const config: RenderPassConfig = {
     renderPipeline,
@@ -145,19 +259,18 @@ async function draw() {
     vertexBuffers,
     bindGroups,
     indexData: { buffer: indexBuffer },
-    instanceCount: moleculeCount,
+    instanceCount: instanceCount,
   }
-  const computeConfig: ComputeConfig = {
-    layout: renderLayout,
-    computePipeline,
-    bindGroups,
-    workgroupCounts: [Math.ceil(moleculeCount / 64), 1, 1],
-  }
-
-  // compute(commandEncoder, computeConfig);
-  render(commandEncoder, config);
-  device.queue.submit([commandEncoder.finish()]);
+  return config;
 }
 
 draw();
+
+const pane = new Pane();
+
+pane.addInput(Params, 'number', { min: 1, max: 100, step: 1 });
+pane.addInput(Params, 'timeStride', { min: 1, max: 100, step: 1 });
+pane.addInput(Params, 'size', { min: 1, max: 100, step: 1 })
+
+pane.on('change', draw)
 

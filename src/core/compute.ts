@@ -32,3 +32,19 @@ export function getComputePipeline(device: GPUDevice, config: ComputePipelineCon
     return { computePipeline };
 }
 
+export function initCompute(device: GPUDevice, computeModule: GPUShaderModule, computeLayout: GPUBindGroupLayout, bindGroups: Map<number, GPUBindGroup>, moleculeCount: number) {
+    const computePipelineConfig: ComputePipelineConfig = {
+        module: computeModule,
+        layout: computeLayout,
+    }
+    const { computePipeline } = getComputePipeline(device, computePipelineConfig);
+
+    const computeConfig: ComputeConfig = {
+        layout: computeLayout,
+        computePipeline,
+        bindGroups,
+        workgroupCounts: [Math.ceil(moleculeCount / 64), 1, 1],
+    }
+    return computeConfig;
+}
+

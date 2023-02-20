@@ -37,6 +37,20 @@ export function getVertexBuffer(typeArray: Float32Array) {
     return buffer;
 }
 
+export function getBuffer(typeArray: Float32Array, usage: GPUBufferUsageFlags) {
+    const buffer = device!.createBuffer({
+        size: typeArray.byteLength,
+        usage,
+        mappedAtCreation: true
+    });
+
+    new Float32Array(buffer.getMappedRange()).set(typeArray);
+    buffer.unmap();
+    return buffer;
+}
+
+
+
 
 export function getTexture(width: number, height: number, format: GPUTextureFormat, usage: GPUTextureUsageFlags) {
     return device!.createTexture({
@@ -89,8 +103,6 @@ export async function getTextureByUrl(url: string) {
     // const copySize = [imageBitmap.width, imageBitmap.height, 1];
     device!.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture }, copySize);
     // device!.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture }, {width: imageBitmap.width, height: imageBitmap.height});
-    console.log(texture);
-
     return texture;
 }
 
