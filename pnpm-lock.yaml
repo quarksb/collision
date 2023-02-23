@@ -3,6 +3,7 @@ lockfileVersion: 5.4
 specifiers:
   '@tweakpane/core': ^1.1.4
   '@webgpu/types': ^0.1.27
+  gl-matrix: ^3.4.3
   tweakpane: ^3.1.4
   typescript: ^4.9.3
   vite: ^4.1.0
@@ -10,6 +11,7 @@ specifiers:
 
 dependencies:
   '@webgpu/types': registry.npmmirror.com/@webgpu/types/0.1.27
+  gl-matrix: registry.npmmirror.com/gl-matrix/3.4.3
   tweakpane: registry.npmmirror.com/tweakpane/3.1.4
   vite-plugin-glsl: registry.npmmirror.com/vite-plugin-glsl/1.1.2_vite@4.1.1
 
@@ -324,6 +326,12 @@ packages:
     resolution: {integrity: sha512-yIovAzMX49sF8Yl58fSCWJ5svSLuaibPxXQJFLmBObTuCr0Mf1KiPopGM9NiFjiYBCbfaa2Fh6breQ6ANVTI0A==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/function-bind/-/function-bind-1.1.1.tgz}
     name: function-bind
     version: 1.1.1
+
+  registry.npmmirror.com/gl-matrix/3.4.3:
+    resolution: {integrity: sha512-wcCp8vu8FT22BnvKVPjXa/ICBWRq/zjFfdofZy1WSpQZpphblv12/bOQLBC1rMM7SGOFS9ltVmKOHil5+Ml7gA==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/gl-matrix/-/gl-matrix-3.4.3.tgz}
+    name: gl-matrix
+    version: 3.4.3
+    dev: false
 
   registry.npmmirror.com/has/1.0.3:
     resolution: {integrity: sha512-f2dvO0VU6Oej7RkWJGrehjbzMAjFp5/VKPp5tTpWIV4JHHZK1/BxbFRtf/siA2SWTe09caDmVtYYzWEIbBS4zw==, registry: https://registry-npm.gaoding.com/, tarball: https://registry.npmmirror.com/has/-/has-1.0.3.tgz}

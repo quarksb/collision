@@ -69,6 +69,16 @@ export function getRenderPipeline(device: GPUDevice, config: RenderPipelineConfi
               {
                 shaderLocation: 0,
                 offset: 0,
+                format: "float32x3",
+              },
+              {
+                shaderLocation: 1,
+                offset: 4 * 3,
+                format: "float32x3",
+              },
+              {
+                shaderLocation: 2,
+                offset: 4 * 6,
                 format: "float32x2",
               },
             ],
@@ -78,13 +88,13 @@ export function getRenderPipeline(device: GPUDevice, config: RenderPipelineConfi
             stepMode: 'instance',
             attributes: [
               {
-                shaderLocation: 1,
+                shaderLocation: 3,
                 offset: 0,
-                format: "float32x2",
+                format: "float32x3",
               },
               {
-                shaderLocation: 2,
-                offset: 4 * 4,
+                shaderLocation: 4,
+                offset: 4 * 6,
                 format: "float32",
               },
             ],

@@ -1,26 +1,62 @@
 import "./index.css";
-import { getBuffer, getGpuDevice, getSampler, getTextureByUrl, getUniformBuffer, getVertexBuffer } from "./utils";
+import { getBuffer, getGpuDevice, getSampler, getTextureByUrl, getTextureFromUrls, getUniformBuffer, getVertexBuffer } from "./utils";
 import printShader from './print.wgsl';
 import computeShader from './compute.wgsl';
-import imgUrl from './ball.png';
+// import imgUrl from './ball.png';
+import { textureUrls } from './texture';
 import type { RenderPipelineConfig } from "./core/type";
 import { getRenderPipeline, render, RenderPassConfig } from "./core/render";
 import { compute, initCompute } from "./core/compute";
 import { Pane } from "tweakpane";
+import { getRandomArray, getSphere } from "./geo/sphere";
+import { getBindGroup, getLayout, GPUBindingLayoutInfo } from "./core/layout";
+import { getMatrix } from "./matrix";
+import { getEyeAndFov, rotateWatch, spaceWatch } from "./EventListen";
+import { mat4 } from "gl-matrix";
 
-const Params = {
+export interface Params {
+  timeStride: number;
+  size: number;
+  number: number;
+  loopNum: number | null;
+  rotateX: number,
+  rotateY: number,
+  fov: number,
+  mvp: mat4,
+  aspect: number,
+}
+
+const Params: Params = {
   timeStride: 50,
   size: 50,
   number: 50,
+  loopNum: null,
+  rotateX: 0,
+  rotateY: 0,
+  fov: 30,
+  mvp: mat4.create(),
+  aspect: 1,
 }
+
 
 function init(device: GPUDevice) {
   const canvas = document.getElementById("canvas") as HTMLCanvasElement;
   const width = window.innerWidth;
   const height = window.innerHeight;
   const size = Math.round(Math.min(width, height) * 0.8);
-  canvas.width = size;
-  canvas.height = size;
+  if (size < 500) {
+    canvas.width = size;
+    canvas.height = size;
+  } else {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    canvas.style.position = 'absolute';
+    canvas.style.left = '0%';
+    canvas.style.top = '0%';
+  }
+
+  Params.aspect = canvas.width / canvas.height;
+
   const context = canvas.getContext("webgpu")!;
   context?.configure({
     device,
@@ -29,221 +65,140 @@ function init(device: GPUDevice) {
     // alphaMode: "opaque",
   });
 
-  const spriteCount = 20;
-  const indexArray = new Uint16Array(spriteCount * 3);
-  const floatArray = new Float32Array(spriteCount * 2 + 2);
-  floatArray[0] = 0;
-  floatArray[1] = 0;
-  for (let i = 1; i <= spriteCount; i++) {
-    const angle = i * Math.PI * 2 / spriteCount;
-    const scale = 1;
-    const x = Math.cos(angle) * scale;
-    const y = Math.sin(angle) * scale;
-    floatArray[i * 2 + 0] = x;
-    floatArray[i * 2 + 1] = y;
-    indexArray[(i - 1) * 3 + 0] = 0;
-    indexArray[(i - 1) * 3 + 1] = i;
-    indexArray[(i - 1) * 3 + 2] = i % spriteCount + 1;
-  }
+  const { vertices, vertexStep, indices } = getSphere(1, 20);
+  // const { vertices, indices } = getRect();
+  const vertexBuffer = getVertexBuffer(vertices);
+  const indexBuffer = getBuffer(indices, GPUBufferUsage.INDEX);
 
-  const vertexBuffer = getVertexBuffer(floatArray);
-  const indexBuffer = device.createBuffer({
-    size: 2 * spriteCount * 3,
-    usage: GPUBufferUsage.INDEX,
-    mappedAtCreation: true
-  });
-
-  new Uint16Array(indexBuffer.getMappedRange()).set(indexArray);
-  indexBuffer.unmap();
-  const paramBuffer = getUniformBuffer(new Float32Array([1, canvas.height / canvas.width]));
-
-  const renderLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX,
-        buffer: {}
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
-        sampler: {
-          type: "filtering"
-        }
-      },
-      {
-        binding: 2,
-        visibility: GPUShaderStage.FRAGMENT,
-        texture: {
-          sampleType: "float"
-        }
-      }
-    ]
-  })
-  return { context, vertexBuffer, indexBuffer, paramBuffer, renderLayout };
+  const bindingLayouts: GPUBindingLayoutInfo[] = [
+    { type: 'buffer', visibility: GPUShaderStage.VERTEX, info: { type: "uniform" } },
+    { type: 'sampler', visibility: GPUShaderStage.FRAGMENT, info: { type: "filtering" } },
+    { type: 'texture', visibility: GPUShaderStage.FRAGMENT, info: { sampleType: "float" } }
+  ]
+  const renderLayout = getLayout(device, bindingLayouts);
+  return { context, vertexBuffer, vertexStep, indexBuffer, renderLayout, canvas };
 }
 
 async function loadResource() {
-  const texture = await getTextureByUrl(imgUrl);
-  return { texture }
+  const promises = textureUrls.map(async ({ name, url }) => {
+    const texture = await getTextureByUrl(url);
+    return { [name]: texture };
+  });
+
+  const textures = await Promise.all(promises);
+  return textures;
 }
 
 async function draw() {
   const device = await getGpuDevice();
-  const { context, vertexBuffer, indexBuffer, renderLayout, paramBuffer } = init(device);
-  const { texture } = await loadResource();
+  const { context, vertexBuffer, vertexStep, indexBuffer, renderLayout, canvas } = init(device);
+  const textures = await loadResource();
 
-  const instanceCount = Params.number * 10;
-  const baseInstanceNum = 6;
-  const randomArray = new Float32Array(instanceCount * baseInstanceNum);
-  for (let i = 0; i < instanceCount; i++) {
-    const baseIndex = i * baseInstanceNum;
-    randomArray[baseIndex + 0] = Math.random() * 2 - 1;
-    randomArray[baseIndex + 1] = Math.random() * 2 - 1;
-    randomArray[baseIndex + 2] = Math.random() * 2 - 1;
-    randomArray[baseIndex + 3] = Math.random() * 2 - 1;
-    randomArray[baseIndex + 4] = (Math.random() * 0.6 + 0.4) * 4E-4 * Params.size;
-  }
+  const { eye, fov } = getEyeAndFov(Params, Params.rotateX, Params.rotateY);
+  console.log(fov);
 
-  // const randomArray = new Float32Array([0, 0, 0.1, 0, 1, 0]);
+  Params.mvp = getMatrix({ eye, aspect: Params.aspect, fov });
+  // const mvp = mat4.create()
+  const paramBuffer = getUniformBuffer(Params.mvp as Float32Array);
 
-  const usage = GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST;
+  // const instanceCount = Params.number * 10;
+  const instanceCount = 1000;
+  const baseInstanceNum = 8; // num should be multiple of 4, or you will get error when instanceCount is not small
+  const randomArray = getRandomArray(instanceCount, baseInstanceNum, Params.size * 2E-3);
+
+  const usage = GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
   const instanceBuffers = [getBuffer(randomArray, usage), getBuffer(randomArray, usage)];
 
-  const renderBindGroup = device.createBindGroup({
-    layout: renderLayout,
-    entries: [
-      {
-        binding: 0,
-        resource: { buffer: paramBuffer }
-      },
-      {
-        binding: 1,
-        resource: getSampler(),
-      },
-      {
-        binding: 2,
-        resource: texture.createView(),
-      },
-    ]
-  });
+  console.log(textures);
+  
+  let resources = [{ buffer: paramBuffer }, getSampler(), textures[0].baseColor.createView()];
+  const renderBindGroup = getBindGroup(device, renderLayout, resources);
 
   const vertexBuffers = new Map<number, GPUBuffer>();
   vertexBuffers.set(0, vertexBuffer);
   const renderBindGroups = new Map<number, GPUBindGroup>();
   renderBindGroups.set(0, renderBindGroup);
 
-  const computeLayout = device.createBindGroupLayout({
-    entries: [
-      {
-        binding: 0,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "read-only-storage"
-        }
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "storage"
-        }
-      },
-      {
-        binding: 2,
-        visibility: GPUShaderStage.COMPUTE,
-        buffer: {
-          type: "uniform"
-        }
-      },
-    ]
-  });
-
   const computeBuffer = device.createBuffer({
     size: 4 * 1,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: true
   });
-  new Float32Array(computeBuffer.getMappedRange()).set([Params.timeStride * 1E-4]);
+  new Float32Array(computeBuffer.getMappedRange()).set([Params.timeStride * 5E-5]);
   computeBuffer.unmap();
 
+  const bindingLayouts: GPUBindingLayoutInfo[] = [
+    { type: 'buffer', visibility: GPUShaderStage.COMPUTE, info: { type: "read-only-storage" } },
+    { type: 'buffer', visibility: GPUShaderStage.COMPUTE, info: { type: "storage" } },
+    { type: 'buffer', visibility: GPUShaderStage.COMPUTE, info: { type: "uniform" } }
+  ]
 
-  const computeBindGroupArray = [device.createBindGroup({
-    layout: computeLayout,
-    entries: [
-      {
-        binding: 0,
-        resource: { buffer: instanceBuffers[0] }
-      },
-      {
-        binding: 1,
-        resource: { buffer: instanceBuffers[1] }
-      },
-      {
-        binding: 2,
-        resource: { buffer: computeBuffer }
-      },
-    ]
-  }),
-  device.createBindGroup({
-    layout: computeLayout,
-    entries: [
-      {
-        binding: 0,
-        resource: { buffer: instanceBuffers[1] }
-      },
-      {
-        binding: 1,
-        resource: { buffer: instanceBuffers[0] }
-      },
-      {
-        binding: 2,
-        resource: { buffer: computeBuffer }
-      },
-    ]
-  })
+  const computeLayout = getLayout(device, bindingLayouts);
+
+  const computeBindGroupArray = [
+    getBindGroup(device, computeLayout, [{ buffer: instanceBuffers[0] }, { buffer: instanceBuffers[1] }, { buffer: computeBuffer }]),
+    getBindGroup(device, computeLayout, [{ buffer: instanceBuffers[1] }, { buffer: instanceBuffers[0] }, { buffer: computeBuffer }]),
   ]
 
   const computeBindGroups = new Map<number, GPUBindGroup>();
   const computeModule = device.createShaderModule({ code: computeShader });
 
-  let loopNum: number | null = 0;
+  const size = instanceCount * baseInstanceNum * Float32Array.BYTES_PER_ELEMENT;
+  const readBuffer = device.createBuffer({
+    size,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+  });
+
   let i = 0;
-  const show = () => {
+  const show = async () => {
+    // let time = performance.now();
+    device.queue.writeBuffer(paramBuffer, 0, Params.mvp as Float32Array);
+
     vertexBuffers.set(1, instanceBuffers[i % 2]);
     computeBindGroups.set(0, computeBindGroupArray[i % 2]);
     const commandEncoder = device.createCommandEncoder();
     const computeConfig = initCompute(device, computeModule, computeLayout, computeBindGroups, instanceCount);
     const textureView = context.getCurrentTexture().createView();
-    const renderConfig = initRender(device, vertexBuffers, renderBindGroups, renderLayout, indexBuffer, textureView, instanceCount, baseInstanceNum);
+    const renderConfig = initRender(device, vertexBuffers, renderBindGroups, renderLayout, indexBuffer, textureView, instanceCount, baseInstanceNum, vertexStep);
     compute(commandEncoder, computeConfig);
+
+    commandEncoder.copyBufferToBuffer(instanceBuffers[i % 2], 0, readBuffer, 0, size);
     render(commandEncoder, renderConfig);
     device.queue.submit([commandEncoder.finish()]);
-    loopNum = requestAnimationFrame(show);
+    // await device.queue.onSubmittedWorkDone();
+    // // console.log(`time: ${(performance.now() - time).toFixed(2)}ms`)
+
+    // await readBuffer.mapAsync(GPUMapMode.READ);
+    // const arrayBuffer = readBuffer.getMappedRange();
+    // const floatArray = new Float32Array(arrayBuffer);
+
+    // let text = '';
+    // for (let i = 6; i < floatArray.length; i += baseInstanceNum) {
+    //   text += floatArray[i].toFixed(4) + ',';
+    // }
+    // readBuffer.unmap();
+    // console.log(text);
+    Params.loopNum = requestAnimationFrame(show);
+
+
     i++;
+    // console.log(i);
+
   }
   show();
-
-  document.addEventListener("keydown", function (event) {
-    if (event.code === "Space") {
-      if (loopNum) {
-        cancelAnimationFrame(loopNum);
-        loopNum = null;
-      } else {
-        show();
-      }
-    }
-  });
+  spaceWatch(Params, show);
+  rotateWatch(canvas, Params);
+  // rotateWatch(Params, show);
 }
 
-function initRender(device: GPUDevice, vertexBuffers: Map<number, GPUBuffer>, bindGroups: Map<number, GPUBindGroup>, renderLayout: GPUBindGroupLayout, indexBuffer: GPUBuffer, textureView: GPUTextureView, instanceCount: number, baseInstanceNum: number) {
+function initRender(device: GPUDevice, vertexBuffers: Map<number, GPUBuffer>, bindGroups: Map<number, GPUBindGroup>, renderLayout: GPUBindGroupLayout, indexBuffer: GPUBuffer, textureView: GPUTextureView, instanceCount: number, baseInstanceNum: number, vertexStep: number) {
   const shaderModule = device.createShaderModule({ code: printShader });
   // const computeModule = device.createShaderModule({ code: computeShader });
 
   const renderConfig: RenderPipelineConfig = {
     layout: renderLayout,
     module: shaderModule,
-    vertexArrayStride: 4 * 2,
+    vertexArrayStride: 4 * vertexStep,
     instanceStride: 4 * baseInstanceNum,
   }
 

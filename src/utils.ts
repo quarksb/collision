@@ -37,26 +37,27 @@ export function getVertexBuffer(typeArray: Float32Array) {
     return buffer;
 }
 
-export function getBuffer(typeArray: Float32Array, usage: GPUBufferUsageFlags) {
+export function getBuffer(typeArray: Float32Array | Uint16Array, usage: GPUBufferUsageFlags) {
     const buffer = device!.createBuffer({
         size: typeArray.byteLength,
         usage,
         mappedAtCreation: true
     });
 
-    new Float32Array(buffer.getMappedRange()).set(typeArray);
+    typeArray instanceof Uint16Array ? new Uint16Array(buffer.getMappedRange()).set(typeArray) :
+        new Float32Array(buffer.getMappedRange()).set(typeArray);
+
     buffer.unmap();
     return buffer;
 }
-
-
 
 
 export function getTexture(width: number, height: number, format: GPUTextureFormat, usage: GPUTextureUsageFlags) {
     return device!.createTexture({
         size: [width, height],
         format,
-        usage
+        usage,
+
     });
 }
 
@@ -97,11 +98,11 @@ async function createImageBitmapFromUrl(url: string): Promise<GPUImageCopyExtern
 
 export async function getTextureByUrl(url: string) {
     const imageBitmap: GPUImageCopyExternalImage['source'] = await createImageBitmapFromUrl(url);
-    const texture = getTexture(imageBitmap.width, imageBitmap.height, "bgra8unorm-srgb", GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT);
+    const texture = getTexture(imageBitmap.width, imageBitmap.height, "bgra8unorm", GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.RENDER_ATTACHMENT);
     // console.log(imageBitmap.toDataURL());
-    const copySize = {width: imageBitmap.width, height: imageBitmap.height};
+    const copySize = { width: imageBitmap.width, height: imageBitmap.height };
     // const copySize = [imageBitmap.width, imageBitmap.height, 1];
-    device!.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture }, copySize);
+    device!.queue.copyExternalImageToTexture({ source: imageBitmap, flipY: false }, { texture }, copySize);
     // device!.queue.copyExternalImageToTexture({ source: imageBitmap }, { texture }, {width: imageBitmap.width, height: imageBitmap.height});
     return texture;
 }
