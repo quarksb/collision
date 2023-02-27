@@ -16,10 +16,10 @@ export function compute(commandEncoder: GPUCommandEncoder, computeConfig: Comput
 }
 
 export function getComputePipeline(device: GPUDevice, config: ComputePipelineConfig) {
-    const { layout, module, constants } = config;
+    const { layouts, module, constants } = config;
     const computeScript: GPUComputePipelineDescriptor = {
         layout: device.createPipelineLayout({
-            bindGroupLayouts: [layout]
+            bindGroupLayouts: layouts
         }),
         compute: {
             module,
@@ -35,12 +35,11 @@ export function getComputePipeline(device: GPUDevice, config: ComputePipelineCon
 export function initCompute(device: GPUDevice, computeModule: GPUShaderModule, computeLayout: GPUBindGroupLayout, bindGroups: Map<number, GPUBindGroup>, moleculeCount: number) {
     const computePipelineConfig: ComputePipelineConfig = {
         module: computeModule,
-        layout: computeLayout,
+        layouts: [computeLayout],
     }
     const { computePipeline } = getComputePipeline(device, computePipelineConfig);
 
     const computeConfig: ComputeConfig = {
-        layout: computeLayout,
         computePipeline,
         bindGroups,
         workgroupCounts: [Math.ceil(moleculeCount / 64), 1, 1],

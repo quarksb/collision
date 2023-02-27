@@ -13,6 +13,7 @@ import { getBindGroup, getLayout, GPUBindingLayoutInfo } from "./core/layout";
 import { getMatrix } from "./matrix";
 import { getEyeAndFov, rotateWatch, spaceWatch } from "./EventListen";
 import { mat4 } from "gl-matrix";
+import { gpuDebug } from "./debug";
 
 export interface Params {
   timeStride: number;
@@ -24,6 +25,9 @@ export interface Params {
   fov: number,
   mvp: mat4,
   aspect: number,
+  baseColorFactor: number[],
+  metallicFactor: number,
+  roughnessFactor: number,
 }
 
 const Params: Params = {
@@ -36,6 +40,9 @@ const Params: Params = {
   fov: 30,
   mvp: mat4.create(),
   aspect: 1,
+  baseColorFactor: [1, 1, 1, 1],
+  metallicFactor: 1,
+  roughnessFactor: 1,
 }
 
 
@@ -70,19 +77,27 @@ function init(device: GPUDevice) {
   const vertexBuffer = getVertexBuffer(vertices);
   const indexBuffer = getBuffer(indices, GPUBufferUsage.INDEX);
 
-  const bindingLayouts: GPUBindingLayoutInfo[] = [
+  let bindingLayouts: GPUBindingLayoutInfo[] = [
     { type: 'buffer', visibility: GPUShaderStage.VERTEX, info: { type: "uniform" } },
     { type: 'sampler', visibility: GPUShaderStage.FRAGMENT, info: { type: "filtering" } },
-    { type: 'texture', visibility: GPUShaderStage.FRAGMENT, info: { sampleType: "float" } }
+    { type: 'buffer', visibility: GPUShaderStage.FRAGMENT, info: { type: "uniform" } },
   ]
-  const renderLayout = getLayout(device, bindingLayouts);
-  return { context, vertexBuffer, vertexStep, indexBuffer, renderLayout, canvas };
+
+  const renderLayout0 = getLayout(device, bindingLayouts);
+  bindingLayouts = [
+    { type: 'texture', visibility: GPUShaderStage.FRAGMENT, info: { sampleType: "float" } },
+    { type: 'texture', visibility: GPUShaderStage.FRAGMENT, info: { sampleType: "float" } },
+    { type: 'texture', visibility: GPUShaderStage.FRAGMENT, info: { sampleType: "float" } }
+  ];
+  const renderLayout1 = getLayout(device, bindingLayouts);
+
+  return { context, vertexBuffer, vertexStep, indexBuffer, renderLayouts: [renderLayout0, renderLayout1], canvas };
 }
 
 async function loadResource() {
   const promises = textureUrls.map(async ({ name, url }) => {
-    const texture = await getTextureByUrl(url);
-    return { [name]: texture };
+    const texture: GPUTexture = await getTextureByUrl(url);
+    return { texture, name };
   });
 
   const textures = await Promise.all(promises);
@@ -92,15 +107,17 @@ async function loadResource() {
 
 async function draw() {
   const device = await getGpuDevice();
-  const { context, vertexBuffer, vertexStep, indexBuffer, renderLayout, canvas } = init(device);
+  const { context, vertexBuffer, vertexStep, indexBuffer, renderLayouts, canvas } = init(device);
   const textures = await loadResource();
 
   const { eye, fov } = getEyeAndFov(Params, Params.rotateX, Params.rotateY);
-  console.log(fov);
 
   Params.mvp = getMatrix({ eye, aspect: Params.aspect, fov });
   // const mvp = mat4.create()
   const paramBuffer = getUniformBuffer(Params.mvp as Float32Array);
+  // console.log(Params.baseColorFactor);
+
+  const materialBuffer = getUniformBuffer(new Float32Array([...Params.baseColorFactor, Params.metallicFactor, Params.roughnessFactor, 0, 0]));
 
   // const instanceCount = Params.number * 10;
   const instanceCount = 10000;
@@ -110,13 +127,17 @@ async function draw() {
   const usage = GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
   const instanceBuffers = [getBuffer(randomArray, usage), getBuffer(randomArray, usage)];
 
-  let resources = [{ buffer: paramBuffer }, getSampler(), textures[0].baseColor.createView()];
-  const renderBindGroup = getBindGroup(device, renderLayout, resources);
+  let resources: GPUBindingResource[] = [{ buffer: paramBuffer }, getSampler(), { buffer: materialBuffer }];
+
+  const renderBindGroup0 = getBindGroup(device, renderLayouts[0], resources);
+  resources = textures.map((texture) => texture.texture.createView());
+  const renderBindGroup1 = getBindGroup(device, renderLayouts[1], resources)
 
   const vertexBuffers = new Map<number, GPUBuffer>();
   vertexBuffers.set(0, vertexBuffer);
   const renderBindGroups = new Map<number, GPUBindGroup>();
-  renderBindGroups.set(0, renderBindGroup);
+  renderBindGroups.set(0, renderBindGroup0);
+  renderBindGroups.set(1, renderBindGroup1);
 
   const computeBuffer = device.createBuffer({
     size: 4 * 1,
@@ -161,7 +182,7 @@ async function draw() {
     const instanceCount = Params.number * 10;
     const computeConfig = initCompute(device, computeModule, computeLayout, computeBindGroups, instanceCount);
     const textureView = context.getCurrentTexture().createView();
-    const renderConfig = initRender(device, vertexBuffers, renderBindGroups, renderLayout, indexBuffer, textureView, instanceCount, baseInstanceNum, vertexStep);
+    const renderConfig = initRender(device, vertexBuffers, renderBindGroups, renderLayouts, indexBuffer, textureView, instanceCount, baseInstanceNum, vertexStep);
     compute(commandEncoder, computeConfig);
 
     // commandEncoder.copyBufferToBuffer(instanceBuffers[i % 2], 0, readBuffer, 0, size);
@@ -188,18 +209,19 @@ async function draw() {
     // console.log(i);
 
   }
+  // gpuDebug(device, show);
   show();
   spaceWatch(Params, show);
   rotateWatch(canvas, Params);
   // rotateWatch(Params, show);
 }
 
-function initRender(device: GPUDevice, vertexBuffers: Map<number, GPUBuffer>, bindGroups: Map<number, GPUBindGroup>, renderLayout: GPUBindGroupLayout, indexBuffer: GPUBuffer, textureView: GPUTextureView, instanceCount: number, baseInstanceNum: number, vertexStep: number) {
+function initRender(device: GPUDevice, vertexBuffers: Map<number, GPUBuffer>, bindGroups: Map<number, GPUBindGroup>, renderLayouts: GPUBindGroupLayout[], indexBuffer: GPUBuffer, textureView: GPUTextureView, instanceCount: number, baseInstanceNum: number, vertexStep: number) {
   const shaderModule = device.createShaderModule({ code: printShader });
   // const computeModule = device.createShaderModule({ code: computeShader });
 
   const renderConfig: RenderPipelineConfig = {
-    layout: renderLayout,
+    layouts: renderLayouts,
     module: shaderModule,
     vertexArrayStride: 4 * vertexStep,
     instanceStride: 4 * baseInstanceNum,

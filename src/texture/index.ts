@@ -1,10 +1,10 @@
 import baseColor from './2k_earth_daymap.jpg';
-// import normalMap from './2k_earth_normal_map.tif';
-// import specularMap from './2k_earth_specular_map.tif';
+import normalMap from './2k_earth_normal.jpg';
+import specularMap from './2k_earth_specular.jpg';
 
 
 export const textureUrls = [
     { name: 'baseColor', url: baseColor },
-    // { name: 'normalMap', url: normalMap },
-    // { name: 'specularMap', url: specularMap },
+    { name: 'normalMap', url: normalMap },
+    { name: 'specularMap', url: specularMap },
 ];

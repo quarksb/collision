@@ -1,11 +1,10 @@
 export interface ModuleConfig{
-    layout: GPUBindGroupLayout;
     computePipeline: GPUComputePipeline;
     bindGroups: Map<number, GPUBindGroup>;
 }
 
 export interface ComputePipelineConfig {
-    layout: GPUBindGroupLayout;
+    layouts: GPUBindGroupLayout[];
     module: GPUShaderModule;
     constants?: Record<string, number>;
 }

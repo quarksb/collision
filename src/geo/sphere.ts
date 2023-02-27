@@ -20,7 +20,7 @@ export function getSphere(radius = 1, segments = 32) {
             const z = sinPhi * r;
 
             const baseIndex = (i * (segments + 1) + j) * vertexStep;
-            vertices[baseIndex] = x * radius;
+            vertices[baseIndex + 0] = x * radius;
             vertices[baseIndex + 1] = y * radius;
             vertices[baseIndex + 2] = z * radius;
 
@@ -42,7 +42,7 @@ export function getSphere(radius = 1, segments = 32) {
             const second = first + segments + 1;
 
             const baseIndex = (i * segments + j) * 6;
-            indices[baseIndex] = first;
+            indices[baseIndex + 0] = first;
             indices[baseIndex + 1] = second;
             indices[baseIndex + 2] = first + 1;
 
@@ -66,7 +66,7 @@ export function getRandomArray(instanceCount: number, baseInstanceNum: number, r
         randomArray[baseIndex + 4] = Math.random() * 2 - 1;
         randomArray[baseIndex + 5] = Math.random() * 2 - 1;
         randomArray[baseIndex + 6] = (Math.random() * 0.6 + 0.4) * radius;
-        
+
 
         // randomArray[baseIndex + 0] = 0;
         // randomArray[baseIndex + 1] = 0;

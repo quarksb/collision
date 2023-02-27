@@ -49,14 +49,17 @@ export function render(commandEncoder: GPUCommandEncoder, config: RenderPassConf
 }
 
 export function getRenderPipeline(device: GPUDevice, config: RenderPipelineConfig) {
-  const { layout, module, vertexArrayStride = 0, instanceStride = 0 } = config;
+  const { layouts, module, vertexArrayStride = 0, instanceStride = 0 } = config;
   const primitive: GPUPrimitiveState = {
     topology: 'triangle-list',
     cullMode: 'back',
+    // cullMode: 'front',
   };
+  // console.log(layouts);
+  
   const renderScript: GPURenderPipelineDescriptor = {
     layout: device.createPipelineLayout({
-      bindGroupLayouts: [layout]
+      bindGroupLayouts: layouts
     }),
     vertex: {
       module,
