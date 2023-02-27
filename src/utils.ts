@@ -107,6 +107,11 @@ export async function getTextureByUrl(url: string) {
     return texture;
 }
 
+export function getTextureFromUrls(urls: string[]) {
+    const textures = urls.map(url => getTextureByUrl(url));
+    return Promise.all(textures);
+}
+
 export function getSampler() {
     return device!.createSampler({
         magFilter: "linear",

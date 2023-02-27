@@ -1,7 +1,7 @@
 import "./index.css";
 import { getBuffer, getGpuDevice, getSampler, getTextureByUrl, getTextureFromUrls, getUniformBuffer, getVertexBuffer } from "./utils";
 import printShader from './print.wgsl';
-import computeShader from './compute.wgsl';
+import computeShader from './compute.wgsl?raw';
 // import imgUrl from './ball.png';
 import { textureUrls } from './texture';
 import type { RenderPipelineConfig } from "./core/type";
@@ -89,6 +89,7 @@ async function loadResource() {
   return textures;
 }
 
+
 async function draw() {
   const device = await getGpuDevice();
   const { context, vertexBuffer, vertexStep, indexBuffer, renderLayout, canvas } = init(device);
@@ -102,15 +103,13 @@ async function draw() {
   const paramBuffer = getUniformBuffer(Params.mvp as Float32Array);
 
   // const instanceCount = Params.number * 10;
-  const instanceCount = 1000;
+  const instanceCount = 10000;
   const baseInstanceNum = 8; // num should be multiple of 4, or you will get error when instanceCount is not small
   const randomArray = getRandomArray(instanceCount, baseInstanceNum, Params.size * 2E-3);
 
   const usage = GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
   const instanceBuffers = [getBuffer(randomArray, usage), getBuffer(randomArray, usage)];
 
-  console.log(textures);
-  
   let resources = [{ buffer: paramBuffer }, getSampler(), textures[0].baseColor.createView()];
   const renderBindGroup = getBindGroup(device, renderLayout, resources);
 
@@ -124,7 +123,7 @@ async function draw() {
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     mappedAtCreation: true
   });
-  new Float32Array(computeBuffer.getMappedRange()).set([Params.timeStride * 5E-5]);
+  // new Float32Array(computeBuffer.getMappedRange()).set([Params.timeStride * 5E-5]);
   computeBuffer.unmap();
 
   const bindingLayouts: GPUBindingLayoutInfo[] = [
@@ -153,20 +152,23 @@ async function draw() {
   const show = async () => {
     // let time = performance.now();
     device.queue.writeBuffer(paramBuffer, 0, Params.mvp as Float32Array);
+    device.queue.writeBuffer(computeBuffer, 0, new Float32Array([Params.timeStride * 1E-4]));
 
+    device.pushErrorScope('validation');
     vertexBuffers.set(1, instanceBuffers[i % 2]);
     computeBindGroups.set(0, computeBindGroupArray[i % 2]);
     const commandEncoder = device.createCommandEncoder();
+    const instanceCount = Params.number * 10;
     const computeConfig = initCompute(device, computeModule, computeLayout, computeBindGroups, instanceCount);
     const textureView = context.getCurrentTexture().createView();
     const renderConfig = initRender(device, vertexBuffers, renderBindGroups, renderLayout, indexBuffer, textureView, instanceCount, baseInstanceNum, vertexStep);
     compute(commandEncoder, computeConfig);
 
-    commandEncoder.copyBufferToBuffer(instanceBuffers[i % 2], 0, readBuffer, 0, size);
+    // commandEncoder.copyBufferToBuffer(instanceBuffers[i % 2], 0, readBuffer, 0, size);
     render(commandEncoder, renderConfig);
     device.queue.submit([commandEncoder.finish()]);
-    // await device.queue.onSubmittedWorkDone();
-    // // console.log(`time: ${(performance.now() - time).toFixed(2)}ms`)
+    await device.queue.onSubmittedWorkDone();
+    // console.log(`time: ${(performance.now() - time).toFixed(2)}ms`)
 
     // await readBuffer.mapAsync(GPUMapMode.READ);
     // const arrayBuffer = readBuffer.getMappedRange();
@@ -178,6 +180,7 @@ async function draw() {
     // }
     // readBuffer.unmap();
     // console.log(text);
+
     Params.loopNum = requestAnimationFrame(show);
 
 
@@ -214,7 +217,7 @@ function initRender(device: GPUDevice, vertexBuffers: Map<number, GPUBuffer>, bi
     vertexBuffers,
     bindGroups,
     indexData: { buffer: indexBuffer },
-    instanceCount: instanceCount,
+    instanceCount,
   }
   return config;
 }
@@ -223,9 +226,13 @@ draw();
 
 const pane = new Pane();
 
-pane.addInput(Params, 'number', { min: 1, max: 100, step: 1 });
-pane.addInput(Params, 'timeStride', { min: 1, max: 100, step: 1 });
-pane.addInput(Params, 'size', { min: 1, max: 100, step: 1 })
+pane.addInput(Params, 'number', { min: 1, max: 1000, step: 1 });
+pane.addInput(Params, 'timeStride', { min: 1, max: 1000, step: 1 });
+// pane.addInput(Params, 'size', { min: 1, max: 100, step: 1 })
 
-pane.on('change', draw)
+pane.on('change', () => {
+  if (!Params.loopNum) {
+    draw();
+  }
+})
 

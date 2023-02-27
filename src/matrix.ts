@@ -20,5 +20,7 @@ export function getMatrix(datas: {
     const matrix = mat4.create();
     mat4.multiply(matrix, projectionMatrix, viewMatrix);
     // mat4.multiply(matrix, matrix, modelMatrix);
+
+    
     return matrix;
 }
