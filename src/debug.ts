@@ -1,14 +1,11 @@
 export function gpuDebug(device: GPUDevice, render: () => any) {
     device.pushErrorScope('out-of-memory');
     device.pushErrorScope('validation');
+    device.pushErrorScope('internal');
 
-    {
-        device.pushErrorScope('validation');
-        render()
-        device.popErrorScope().then(showError);
-    }
-
+    render()
     // Detect unexpected errors.
+    device.popErrorScope().then(showError);
     device.popErrorScope().then(showError);
     device.popErrorScope().then(showError);
 }

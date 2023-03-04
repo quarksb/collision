@@ -1,5 +1,5 @@
 struct Ball {
-    position: vec3<f32>,
+    @align(16) position: vec3<f32>,
     velocity: vec3<f32>,
     radius: f32,
 };
@@ -25,66 +25,61 @@ struct Balls {
 // };
 
 
-
 @group(0) @binding(0) var<storage, read> balls0: Balls;
 @group(0) @binding(1) var<storage, read_write> balls1: Balls;
 @group(0) @binding(2) var<uniform> params: Params;
 
-
 @compute @workgroup_size(64,1,1)
 fn main(@builtin(global_invocation_id) GlobalInvocationID: vec3<u32>) {
-    let index: u32 = GlobalInvocationID.x;
-    // if (index >= arrayLength(&balls0.balls)) {
-    //     return;
-    // }
+    let index: i32 = i32(GlobalInvocationID.x);
+    let len = i32(arrayLength(&balls0.balls));
+    let time = params.deltaT;
+    if index >= len {
+        return;
+    }
     let curBall: Ball = balls0.balls[index];
-    var curVel = curBall.velocity.xyz;
-    // var curPos = (curBall.position + curVel * params.deltaT + vec3<f32>(3.0)) % vec3<f32>(2.0) - vec3<f32>(1.0);
-    var curPos = curBall.position + curVel * params.deltaT;
+    var curVel: vec3<f32> = curBall.velocity;
+    var curPos = curBall.position + curVel * time;
+    let curRad = curBall.radius;
 
     var diff = curPos - vec3(1.0);
     var signal = step(vec3(-curBall.radius), diff);
-    curPos += signal * diff * -2.;
+    curPos += signal * (-diff - vec3(curBall.radius)) * 2.;
     curVel *= (-2. * signal + 1.);
-    diff = vec3(-1.0) - curPos;
-    signal = step(vec3(-curBall.radius), diff);
-    curPos += signal * diff * 2.;
+    diff = curPos + vec3(1.0);
+    signal = step(vec3(diff), vec3(curBall.radius));
+    curPos += signal * (-diff + vec3(curBall.radius)) * 2.;
     curVel *= (-2. * signal + 1.);
 
-    let curRad = curBall.radius;
-
-    var ball: Ball;
-    var pos: vec3<f32>;
-    var vel: vec3<f32>;
-    var rad: f32;
-
-    for(var i =0u; i<arrayLength(&balls0.balls); i++){
-        if(i == index){
+    
+    for (var i = 0; i < len; i++) {
+        if i == index { 
             continue;
         }
-        ball = balls0.balls[i];
-        pos = (ball.position + ball.velocity * params.deltaT + vec3<f32>(3.0)) % vec3<f32>(2.0) - vec3<f32>(1.0);
+        let ball = balls0.balls[i];
+        let vel = ball.velocity;
+        let rad = ball.radius;
+        var pos = ball.position + vel * time;
         let dis = distance(curPos, pos);
-        if(dis < curRad + ball.radius){
-            let len = curRad + ball.radius - dis;
-            let velRelative= curVel - ball.velocity;
+        if dis < curRad + rad {
+            let len = curRad + rad - dis;
+            let velRelative = curVel - vel;
             let t = len / length(velRelative);
 
             curPos -= curVel * t;
-            pos -= ball.velocity * t;
+            pos -= vel * t;
 
             let normal = normalize(pos - curPos);
-            // let tangent = 
-            let m1 = curRad * curRad;
+            let m1 = curRad * curRad * curRad;
             let v1n = dot(curVel, normal);
             let v1t = curVel - v1n * normal;
-            let m2 = ball.radius * ball.radius;
-            let v2n = dot(ball.velocity, normal);
+            let m2 = rad * rad * rad;
+            let v2n = dot(vel, normal);
 
 
             let v1nNew = (v1n * (m1 - m2) + 2.0 * m2 * v2n) / (m1 + m2);
             curVel = v1nNew * normal + v1t;
-            curPos += curVel * t;
+            curPos += curVel * (time - t);
             break;
         }
     }

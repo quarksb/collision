@@ -49,14 +49,13 @@ export function render(commandEncoder: GPUCommandEncoder, config: RenderPassConf
 }
 
 export function getRenderPipeline(device: GPUDevice, config: RenderPipelineConfig) {
-  const { layouts, module, vertexArrayStride = 0, instanceStride = 0 } = config;
+  const { layouts, module, vertexArrayStride = 1, instanceStride = 1 } = config;
   const primitive: GPUPrimitiveState = {
     topology: 'triangle-list',
     cullMode: 'back',
     // cullMode: 'front',
   };
-  // console.log(layouts);
-  
+
   const renderScript: GPURenderPipelineDescriptor = {
     layout: device.createPipelineLayout({
       bindGroupLayouts: layouts
@@ -97,7 +96,7 @@ export function getRenderPipeline(device: GPUDevice, config: RenderPipelineConfi
             },
             {
               shaderLocation: 4,
-              offset: 4 * 6,
+              offset: 4 * 7,
               format: "float32",
             },
           ],
@@ -115,4 +114,20 @@ export function getRenderPipeline(device: GPUDevice, config: RenderPipelineConfi
   }
   const renderPipeline = device.createRenderPipeline(renderScript);
   return { renderPipeline };
+}
+
+export function getRenderPassConfig(renderPipeline: GPURenderPipeline, vertexBuffers: Map<number, GPUBuffer>, bindGroups: Map<number, GPUBindGroup>, indexBuffer: GPUBuffer, textureView: GPUTextureView, instanceCount: number) {
+  const config: RenderPassConfig = {
+    renderPipeline,
+    colorAttachments: [{
+      view: textureView,
+      loadOp: "clear",
+      storeOp: "store",
+    }],
+    vertexBuffers,
+    bindGroups,
+    indexData: { buffer: indexBuffer },
+    instanceCount,
+  }
+  return config;
 }

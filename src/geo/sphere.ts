@@ -62,20 +62,39 @@ export function getRandomArray(instanceCount: number, baseInstanceNum: number, r
         randomArray[baseIndex + 0] = Math.random() * 2 - 1;
         randomArray[baseIndex + 1] = Math.random() * 2 - 1;
         randomArray[baseIndex + 2] = Math.random() * 2 - 1;
-        randomArray[baseIndex + 3] = Math.random() * 2 - 1;
         randomArray[baseIndex + 4] = Math.random() * 2 - 1;
         randomArray[baseIndex + 5] = Math.random() * 2 - 1;
-        randomArray[baseIndex + 6] = (Math.random() * 0.6 + 0.4) * radius;
-
-
-        // randomArray[baseIndex + 0] = 0;
-        // randomArray[baseIndex + 1] = 0;
-        // randomArray[baseIndex + 2] = 0;
-        // randomArray[baseIndex + 3] = 1;
-        // randomArray[baseIndex + 4] = 1;
-        // randomArray[baseIndex + 5] = 1;
-        // randomArray[baseIndex + 6] = size;
+        randomArray[baseIndex + 6] = Math.random() * 2 - 1;
+        randomArray[baseIndex + 7] = (Math.random() * 0.6 + 0.4) * radius;
     }
+
+    // for (let i = 0; i < instanceCount/2; i+=2) {
+    //     let baseIndex = i * baseInstanceNum;
+
+    //     randomArray[baseIndex + 0] = 0;
+    //     randomArray[baseIndex + 1] = -0.5;
+    //     randomArray[baseIndex + 2] = 0;
+
+
+    //     randomArray[baseIndex + 4] = 0;
+    //     randomArray[baseIndex + 5] = 5;
+    //     randomArray[baseIndex + 6] = 0;
+
+    //     randomArray[baseIndex + 7] = radius;
+        
+
+    //     baseIndex += baseInstanceNum;
+        
+    //     randomArray[baseIndex + 0] = 0;
+    //     randomArray[baseIndex + 1] = 0.5;
+    //     randomArray[baseIndex + 2] = 0;
+
+    //     randomArray[baseIndex + 4] = 0;
+    //     randomArray[baseIndex + 5] = -5;
+    //     randomArray[baseIndex + 6] = 0;
+    //     randomArray[baseIndex + 7] = 0.5 * radius;
+        
+    // }
 
     return randomArray;
 }

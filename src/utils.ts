@@ -44,8 +44,8 @@ export function getBuffer(typeArray: Float32Array | Uint16Array, usage: GPUBuffe
         mappedAtCreation: true
     });
 
-    typeArray instanceof Uint16Array ? new Uint16Array(buffer.getMappedRange()).set(typeArray) :
-        new Float32Array(buffer.getMappedRange()).set(typeArray);
+    const type = typeArray instanceof Uint16Array ? Uint16Array : Float32Array;
+    new type(buffer.getMappedRange()).set(typeArray);
 
     buffer.unmap();
     return buffer;

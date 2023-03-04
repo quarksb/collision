@@ -3,6 +3,7 @@ struct VertexOutput {
     @location(0) texCoord: vec2<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) pos: vec3<f32>,
+    @location(3) tangent: vec3<f32>,
 };
 struct Params {
     mvp: mat4x4<f32>,
@@ -24,32 +25,29 @@ struct MaterialConstants {
 @vertex
 fn vert(@location(0) baseOffset: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) texCoord: vec2<f32>, @location(3) center: vec3<f32>, @location(4) radius: f32) -> VertexOutput {
     // why radius may be negative?
-    let position = (baseOffset * abs(radius) + center);
+    let position = (baseOffset * radius + center);
     var output: VertexOutput;
     output.position = params.mvp * vec4<f32>(position, 1.0);
     output.texCoord = texCoord;
-    // output.normal = normalize(baseOffset);
-    output.normal = vec3<f32>(normal.xy, -normal.z);
-    // output.normal = normalize(vec3<f32>(1.0, -1.0, 1.0));
+    output.normal = vec3<f32>(normal);
+
     output.pos = position;
     return output;
 }
 
 @fragment
-fn frag(@location(0) texCoord: vec2<f32>, @location(1) normal: vec3<f32>, @location(2) pos: vec3<f32>) -> @location(0) vec4<f32> {
+fn frag(@location(0) texCoord: vec2<f32>, @location(1) baseNormal: vec3<f32>, @location(2) pos: vec3<f32>) -> @location(0) vec4<f32> {
     let baseColor: vec4<f32> = textureSample(baseColorMap, mySampler, texCoord);
     let tangentNormal: vec4<f32> = textureSample(normalMap, mySampler, texCoord);
     let specularColor: vec4<f32> = textureSample(specularMap, mySampler, texCoord);
+    let tbn = getTBNMatrix(baseNormal);
+    let normal = normalize(tbn * (2. * tangentNormal.xyz - 1.0));
 
     let viewDirection: vec3<f32> = normalize(vec3<f32>(0.0, 0.0, 10.0) - pos);
-    var lightDirection: vec3<f32> = normalize(vec3<f32>(0.0, 10.0, 10.0));
+    var lightDirection: vec3<f32> = normalize(vec3<f32>(0.0, 0.0, -1.0));
     var light = 2. * vec3<f32>(1.0, 1.0, 1.0);
     var pbrColor: vec4<f32> = calculatePBR(light, baseColor.rgba, specularColor.r, 1.0, normal, lightDirection, viewDirection);
 
-    lightDirection = normalize(vec3<f32>(0.0, -10.0, 10.0));
-    light = 2. * vec3<f32>(1.0, 0.0, .0);
-    pbrColor += calculatePBR(light, baseColor.rgba, specularColor.r, 1.0, normal, lightDirection, viewDirection);
-    // return max(pbrColor, baseColor);
     return pbrColor;
 }
 
@@ -111,4 +109,13 @@ fn EnvDFGLazarov(specularColor: vec3<f32>, gloss: f32, NdotV: f32) -> vec3<f32> 
     let scale = delta - bias;
     bias *= clamp(50.0 * specularColor.y, 0., 1.0);
     return specularColor * scale + bias;
+}
+
+fn getTBNMatrix(pos: vec3<f32>) -> mat3x3<f32> {
+    let N = normalize(pos);
+    let up = vec3(pos.y, -pos.x, 0.0);
+    let T = normalize(cross(up, N));
+    let B = cross(N, T);
+    let TBN = mat3x3(T, B, N);
+    return TBN;
 }

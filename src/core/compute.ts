@@ -32,13 +32,7 @@ export function getComputePipeline(device: GPUDevice, config: ComputePipelineCon
     return { computePipeline };
 }
 
-export function initCompute(device: GPUDevice, computeModule: GPUShaderModule, computeLayout: GPUBindGroupLayout, bindGroups: Map<number, GPUBindGroup>, moleculeCount: number) {
-    const computePipelineConfig: ComputePipelineConfig = {
-        module: computeModule,
-        layouts: [computeLayout],
-    }
-    const { computePipeline } = getComputePipeline(device, computePipelineConfig);
-
+export function initCompute(computePipeline: GPUComputePipeline, bindGroups: Map<number, GPUBindGroup>, moleculeCount: number) {
     const computeConfig: ComputeConfig = {
         computePipeline,
         bindGroups,
@@ -47,3 +41,11 @@ export function initCompute(device: GPUDevice, computeModule: GPUShaderModule, c
     return computeConfig;
 }
 
+export function initComputePipeline(device: GPUDevice, computeModule: GPUShaderModule, computeLayout: GPUBindGroupLayout) {
+    const computePipelineConfig: ComputePipelineConfig = {
+        module: computeModule,
+        layouts: [computeLayout],
+    }
+    const { computePipeline } = getComputePipeline(device, computePipelineConfig);
+    return computePipeline;
+}

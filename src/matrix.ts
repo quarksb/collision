@@ -7,7 +7,7 @@ export function getMatrix(datas: {
     aspect?: number, fov?: number, near?: number,
     far?: number, eye: Readonly<vec3>, center?: Readonly<vec3>, up?: Readonly<vec3>
 }) {
-    const { aspect = 1, fov = Math.PI / 6, near = 1, far = 1000, eye, center = [0, 0, 0], up = [0, 1, 0] } = datas;
+    const { aspect = 1, fov = Math.PI / 6, near = 0.01, far = 1000, eye, center = [0, 0, 0], up = [0, 1, 0] } = datas;
     
     mat4.perspectiveZO(projectionMatrix, fov, aspect, near, far);
     // mat4.orthoZO(projectionMatrix, -aspect, aspect, -1, 1, near, far);

@@ -1,12 +1,12 @@
-import "./index.css";
+import "./index.less";
 import { getBuffer, getGpuDevice, getSampler, getTextureByUrl, getTextureFromUrls, getUniformBuffer, getVertexBuffer } from "./utils";
 import printShader from './print.wgsl';
 import computeShader from './compute.wgsl?raw';
 // import imgUrl from './ball.png';
 import { textureUrls } from './texture';
 import type { RenderPipelineConfig } from "./core/type";
-import { getRenderPipeline, render, RenderPassConfig } from "./core/render";
-import { compute, initCompute } from "./core/compute";
+import { getRenderPipeline, getRenderPassConfig, render, RenderPassConfig } from "./core/render";
+import { compute, initCompute, initComputePipeline } from "./core/compute";
 import { Pane } from "tweakpane";
 import { getRandomArray, getSphere } from "./geo/sphere";
 import { getBindGroup, getLayout, GPUBindingLayoutInfo } from "./core/layout";
@@ -17,13 +17,14 @@ import { gpuDebug } from "./debug";
 
 export interface Params {
   timeStride: number;
-  size: number;
+  dist: number,
   number: number;
   loopNum: number | null;
   rotateX: number,
   rotateY: number,
   fov: number,
   mvp: mat4,
+
   aspect: number,
   baseColorFactor: number[],
   metallicFactor: number,
@@ -31,8 +32,8 @@ export interface Params {
 }
 
 const Params: Params = {
-  timeStride: 50,
-  size: 50,
+  timeStride: 1,
+  dist: 1,
   number: 50,
   loopNum: null,
   rotateX: 0,
@@ -44,6 +45,12 @@ const Params: Params = {
   metallicFactor: 1,
   roughnessFactor: 1,
 }
+
+const pane = new Pane();
+const maxCount = 64;
+pane.addInput(Params, 'number', { min: 1, max: maxCount, step: 1 });
+pane.addInput(Params, 'timeStride', { min: 1, max: 1000, step: 1 });
+pane.addInput(Params, 'dist', { min: 0.1, max: 10 })
 
 
 function init(device: GPUDevice) {
@@ -69,7 +76,6 @@ function init(device: GPUDevice) {
     device,
     format: "bgra8unorm",
     alphaMode: "premultiplied",
-    // alphaMode: "opaque",
   });
 
   const { vertices, vertexStep, indices } = getSphere(1, 20);
@@ -120,9 +126,9 @@ async function draw() {
   const materialBuffer = getUniformBuffer(new Float32Array([...Params.baseColorFactor, Params.metallicFactor, Params.roughnessFactor, 0, 0]));
 
   // const instanceCount = Params.number * 10;
-  const instanceCount = 10000;
+  const instanceCount = maxCount;
   const baseInstanceNum = 8; // num should be multiple of 4, or you will get error when instanceCount is not small
-  const randomArray = getRandomArray(instanceCount, baseInstanceNum, Params.size * 2E-3);
+  const randomArray = getRandomArray(instanceCount, baseInstanceNum, 8E-2);
 
   const usage = GPUBufferUsage.VERTEX | GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC;
   const instanceBuffers = [getBuffer(randomArray, usage), getBuffer(randomArray, usage)];
@@ -169,25 +175,38 @@ async function draw() {
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
   });
 
+  const computePipeline = initComputePipeline(device, computeModule, computeLayout);
+
+  const shaderModule = device.createShaderModule({ code: printShader });
+  const renderPipelineConfig: RenderPipelineConfig = {
+    layouts: renderLayouts,
+    module: shaderModule,
+    vertexArrayStride: 4 * vertexStep,
+    instanceStride: 4 * baseInstanceNum,
+  }
+
+  const { renderPipeline } = getRenderPipeline(device, renderPipelineConfig);
+
   let i = 0;
   const show = async () => {
-    // let time = performance.now();
+    const { eye, fov } = getEyeAndFov(Params, Params.rotateX, Params.rotateY);
+    Params.mvp = getMatrix({ eye, aspect: Params.aspect, fov });
     device.queue.writeBuffer(paramBuffer, 0, Params.mvp as Float32Array);
-    device.queue.writeBuffer(computeBuffer, 0, new Float32Array([Params.timeStride * 1E-4]));
+    device.queue.writeBuffer(computeBuffer, 0, new Float32Array([Params.timeStride * 1E-3]));
 
-    device.pushErrorScope('validation');
-    vertexBuffers.set(1, instanceBuffers[i % 2]);
+    vertexBuffers.set(1, instanceBuffers[(i + 1) % 2]);
     computeBindGroups.set(0, computeBindGroupArray[i % 2]);
     const commandEncoder = device.createCommandEncoder();
-    const instanceCount = Params.number * 10;
-    const computeConfig = initCompute(device, computeModule, computeLayout, computeBindGroups, instanceCount);
+    const instanceCount = Params.number;
+    const computeConfig = initCompute(computePipeline, computeBindGroups, instanceCount);
     const textureView = context.getCurrentTexture().createView();
-    const renderConfig = initRender(device, vertexBuffers, renderBindGroups, renderLayouts, indexBuffer, textureView, instanceCount, baseInstanceNum, vertexStep);
+    const renderConfig = getRenderPassConfig(renderPipeline, vertexBuffers, renderBindGroups, indexBuffer, textureView, instanceCount);
     compute(commandEncoder, computeConfig);
 
-    // commandEncoder.copyBufferToBuffer(instanceBuffers[i % 2], 0, readBuffer, 0, size);
     render(commandEncoder, renderConfig);
+    // commandEncoder.copyBufferToBuffer(instanceBuffers[(i + 1) % 2], 0, readBuffer, 0, size);
     device.queue.submit([commandEncoder.finish()]);
+
     await device.queue.onSubmittedWorkDone();
     // console.log(`time: ${(performance.now() - time).toFixed(2)}ms`)
 
@@ -196,65 +215,30 @@ async function draw() {
     // const floatArray = new Float32Array(arrayBuffer);
 
     // let text = '';
-    // for (let i = 6; i < floatArray.length; i += baseInstanceNum) {
-    //   text += floatArray[i].toFixed(4) + ',';
+    // for (let i = 0; i < floatArray.length; i += baseInstanceNum) {
+    //   text += `pos:[${floatArray[i].toFixed(4)},${floatArray[i + 1].toFixed(4)},${floatArray[i + 2].toFixed(4)}],vel:[${floatArray[i + 4].toFixed(1)},${floatArray[i + 5].toFixed(1)},${floatArray[i + 6].toFixed(1)}],radius:${floatArray[i + 7].toFixed(2)}}\n`;
     // }
     // readBuffer.unmap();
     // console.log(text);
 
     Params.loopNum = requestAnimationFrame(show);
-
-
     i++;
-    // console.log(i);
-
   }
-  // gpuDebug(device, show);
-  show();
+  gpuDebug(device, show);
+  // show();
   spaceWatch(Params, show);
   rotateWatch(canvas, Params);
   // rotateWatch(Params, show);
-}
-
-function initRender(device: GPUDevice, vertexBuffers: Map<number, GPUBuffer>, bindGroups: Map<number, GPUBindGroup>, renderLayouts: GPUBindGroupLayout[], indexBuffer: GPUBuffer, textureView: GPUTextureView, instanceCount: number, baseInstanceNum: number, vertexStep: number) {
-  const shaderModule = device.createShaderModule({ code: printShader });
-  // const computeModule = device.createShaderModule({ code: computeShader });
-
-  const renderConfig: RenderPipelineConfig = {
-    layouts: renderLayouts,
-    module: shaderModule,
-    vertexArrayStride: 4 * vertexStep,
-    instanceStride: 4 * baseInstanceNum,
-  }
-
-  const { renderPipeline } = getRenderPipeline(device, renderConfig);
-
-  const config: RenderPassConfig = {
-    renderPipeline,
-    colorAttachments: [{
-      view: textureView,
-      loadOp: "clear",
-      storeOp: "store",
-    }],
-    vertexBuffers,
-    bindGroups,
-    indexData: { buffer: indexBuffer },
-    instanceCount,
-  }
-  return config;
+  pane.on('change', () => {
+    if (Params.loopNum === null) {
+      show();
+    }
+  })
 }
 
 draw();
 
-const pane = new Pane();
 
-pane.addInput(Params, 'number', { min: 1, max: 1000, step: 1 });
-pane.addInput(Params, 'timeStride', { min: 1, max: 1000, step: 1 });
-// pane.addInput(Params, 'size', { min: 1, max: 100, step: 1 })
 
-pane.on('change', () => {
-  if (!Params.loopNum) {
-    draw();
-  }
-})
+
 
